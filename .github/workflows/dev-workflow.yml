@@ -86,18 +86,18 @@ jobs:
     - name: "Get GCP Docker Repo Name"
       id: get_gcp_docker_repo
       run: |
-        repo_name=${repo_name:-"${{ vars.GCP_DOCKER_REPO_NAME}}"}
+        repo_name=${repo_name:-"dotnet-docker-repo"}
         echo $repo_name
-        echo 'gcp_docker_repo_full_name="${{vars.GCP_DOCKER_REGISTRY}}/${{vars.GCP_GAR_PROJECT_ID}}/"'$repo_name >> $GITHUB_OUTPUT
+        echo 'gcp_docker_repo_full_name="us-central1-docker.pkg.dev/michaels-testing/"'$repo_name >> $GITHUB_OUTPUT
         echo 'gcp_docker_repo_name='$repo_name >> $GITHUB_OUTPUT
       shell: bash
 
     - name: "Get GCP Upstream Docker Repo Name"
       id: get_gcp_upstream_docker_repo
       run: |
-        repo_name=${repo_name:-"${{ vars.GCP_UPSTREAM_DOCKER_REPO}}"}
+        repo_name=${repo_name:-"upstream-docker-repo"}
         echo $repo_name
-        echo 'gcp_upstream_docker_repo_full_name="${{vars.GCP_DOCKER_REGISTRY}}/${{vars.GCP_GAR_PROJECT_ID}}/"'$repo_name >> $GITHUB_OUTPUT
+        echo 'gcp_upstream_docker_repo_full_name="us-central1-docker.pkg.dev/michaels-testing/"'$repo_name >> $GITHUB_OUTPUT
         echo 'gcp_upstream_docker_repo_name='$repo_name >> $GITHUB_OUTPUT
       shell: bash
 
@@ -119,19 +119,14 @@ jobs:
         repo_prefix: ${{true && format('{0}/', steps.get_gcp_docker_repo.outputs.gcp_docker_repo_full_name) || vars.JFROG_REPO_PREFIX }}
         repo_name: ${{true && steps.get_gcp_docker_repo.outputs.gcp_docker_repo_name || vars.JFROG_REPO_NAME}}
         repo_gar: true
-        repo_registry: ${{vars.GCP_DOCKER_REGISTRY}}
-        service_name: ${{ vars.SERVICE_NAME }}
+        repo_registry: us-central1-docker.pkg.dev
+        service_name: dotnet-testing
         target_commitish: ${{ toJSON(github.event.release.target_commitish) }}
         tag_name: ${{ toJSON(github.event.release.tag_name) }}
         ref_name: ${{ toJSON(github.ref_name) }}
 
-    - name: Authenticate to Docker
-      id: docker-auth
-      uses: 'docker/login-action@v1'
-      with:
-        username: 'oauth2accesstoken'
-        password: '${{ steps.oidc-to-google-cloud.outputs.access_token }}'
-        registry: '${{vars.GCP_DOCKER_REGISTRY}}'
+    - name: Configure Docker for GCP
+      run: gcloud auth configure-docker ${{ vars.GCP_DOCKER_REGISTRY }} --quiet
 
     # Modified for .NET build
     - name: Build Docker Image
@@ -146,7 +141,7 @@ jobs:
           --secret id=GOOGLE_CREDENTIALS,src=$GOOGLE_APPLICATION_CREDENTIALS \
           --build-arg GCP_UPSTREAM_DOCKER_REPO="${{ steps.get_gcp_upstream_docker_repo.outputs.gcp_upstream_docker_repo_full_name }}" \
           --build-arg GCP_NUGET_PKG_REPO="${{vars.GCP_NUGET_PKG_REPO}}" \
-          --build-arg DOTNET_VERSION="${{ vars.DOTNET_VERSION }}"
+          --build-arg DOTNET_VERSION="6.0"
       shell: bash
 
     - name: Push Image to GCP Artifact Repository
