@@ -1,0 +1,155 @@
+name: dev-workflow
+on:
+  push:
+    branches:
+    - 'develop**'
+    paths-ignore:
+    - '.github/**'
+    - 'argocd/**'
+
+
+  workflow_dispatch:
+    inputs:
+      checkout_ref:
+        description: 'the branch, tag or SHA to checkout. When checking out the repository'
+        required: false
+jobs:
+
+  # validate-request:
+  #   runs-on: windows-latest
+  #   steps:
+    
+  #   - name: validate checkout_ref
+  #     if: github.event_name == 'workflow_dispatch' && inputs.checkout_ref != ''
+  #     id: validate-checkout-ref
+  #     run: |
+  #       if ! echo "${{ inputs.checkout_ref }}" | grep -qE '^[a-zA-Z0-9/_.-]+$'; then
+  #         echo "Error: checkout_ref contains invalid characters"
+  #         exit 1
+  #       fi
+
+  #   - name: validate branch name
+  #     id: validate-branch-name
+  #     env:
+  #       JSON: ${{ toJSON(github) }}
+  #     run: |
+  #       echo  "Event Details:" $JSON
+  #       echo  "Event Name:" "${{ github.event_name }}"
+  #       echo "validating that branch is valid:" "${{github.event_name == 'release' && github.event.release.target_commitish || github.ref_name}}"
+  #       echo "${{github.event_name == 'release' && github.event.release.target_commitish || github.ref_name}}" | grep -P 'develop'
+  #   - name: display error
+  #     if: failure() && steps.validate-branch-name.outcome == 'failure'
+  #     run: |
+  #       echo "Branch must have format develop"
+
+  # # Validate tag naming conventions 
+  # # "^d[0-9]+\\.[0-9]+\\.[0-9]+", "^r[0-9]+\\.[0-9]+\\.[0-9]+" "^e[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+" "^h[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+"
+  # # Release Tag : r[major version]. [sprint number].[sequence number]
+  #   - name: validate naming convention for tags
+  #     if: ${{github.ref_type == 'tag' }}
+  #     id: validate-tag-name
+  #     run: |
+  #       echo "validating that tag naming convention:" "${{ github.event.release.tag_name }}"
+  #       echo "${{ github.event.release.tag_name }}" | grep -P '^d[0-9]+\.[0-9]+\.[0-9]+'
+  #   - name: display error
+  #     if: failure() && steps.validate-tag-name == 'failure'
+  #     run: |
+  #       echo "tag must have format ^d[0-9]+\.[0-9]+\.[0-9]+"
+
+  build:
+    # needs: validate-request
+    environment: bld-dev
+    runs-on: windows-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      docker-image: ${{ steps.docker-image-name.outputs.image_name }}
+    
+    steps:
+    - name: Checks-out Repository
+      id: checks-out-repository
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.checkout_ref }}
+
+    - name: Authenticate to GCP
+      id: authenticate-to-gcp
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+    - name: 'Set Up Cloud Sdk'
+      id: 'set-up-cloud'
+      uses: 'google-github-actions/setup-gcloud@v1'
+
+    - name: "Get GCP Docker Repo Name"
+      id: get_gcp_docker_repo
+      run: |
+        repo_name=${repo_name:-"${{ vars.GCP_DOCKER_REPO_NAME}}"}
+        echo $repo_name
+        echo 'gcp_docker_repo_full_name="${{vars.GCP_DOCKER_REGISTRY}}/${{vars.GCP_GAR_PROJECT_ID}}/"'$repo_name >> $GITHUB_OUTPUT
+        echo 'gcp_docker_repo_name='$repo_name >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: "Get GCP Upstream Docker Repo Name"
+      id: get_gcp_upstream_docker_repo
+      run: |
+        repo_name=${repo_name:-"${{ vars.GCP_UPSTREAM_DOCKER_REPO}}"}
+        echo $repo_name
+        echo 'gcp_upstream_docker_repo_full_name="${{vars.GCP_DOCKER_REGISTRY}}/${{vars.GCP_GAR_PROJECT_ID}}/"'$repo_name >> $GITHUB_OUTPUT
+        echo 'gcp_upstream_docker_repo_name='$repo_name >> $GITHUB_OUTPUT
+      shell: bash
+
+    # Changed from Maven to NuGet
+    - name: "Get GCP Upstream NuGet Repo Name"
+      id: get_gcp_upstream_nuget_repo
+      run: |
+        repo_name=${repo_name:-"${{ vars.GCP_UPSTREAM_NUGET_REPO}}"}
+        echo $repo_name
+        echo 'gcp_upstream_nuget_repo_full_name="artifactregistry://${{vars.GCP_NUGET_REGISTRY}}/${{vars.GCP_GAR_PROJECT_ID}}/"'$repo_name >> $GITHUB_OUTPUT
+        echo 'gcp_upstream_nuget_repo_name='$repo_name >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Docker-Image-Name
+      id: docker-image-name
+      uses: michaels-stores/devops-action-docker-image@main
+      with:
+        github_event_name: ${{ github.event_name }}
+        repo_prefix: ${{true && format('{0}/', steps.get_gcp_docker_repo.outputs.gcp_docker_repo_full_name) || vars.JFROG_REPO_PREFIX }}
+        repo_name: ${{true && steps.get_gcp_docker_repo.outputs.gcp_docker_repo_name || vars.JFROG_REPO_NAME}}
+        repo_gar: true
+        repo_registry: ${{vars.GCP_DOCKER_REGISTRY}}
+        service_name: ${{ vars.SERVICE_NAME }}
+        target_commitish: ${{ toJSON(github.event.release.target_commitish) }}
+        tag_name: ${{ toJSON(github.event.release.tag_name) }}
+        ref_name: ${{ toJSON(github.ref_name) }}
+
+    - name: Authenticate to Docker
+      id: docker-auth
+      uses: 'docker/login-action@v1'
+      with:
+        username: 'oauth2accesstoken'
+        password: '${{ steps.oidc-to-google-cloud.outputs.access_token }}'
+        registry: '${{vars.GCP_DOCKER_REGISTRY}}'
+
+    # Modified for .NET build
+    - name: Build Docker Image
+      id: build-docker-image
+      run: |
+        echo ${{steps.docker-image-name.outputs.image_name}}
+        GOOGLE_APPLICATION_CREDENTIALS_FLDR=$(dirname $GOOGLE_APPLICATION_CREDENTIALS)
+        DOCKERFILE_NAME=${{ vars.DOCKER_FILE || 'Dockerfile' }}
+        echo "Using Dockerfile: $DOCKERFILE_NAME"
+        docker build --no-cache -f $DOCKERFILE_NAME . \
+          -t ${{steps.docker-image-name.outputs.image_name}} \
+          --secret id=GOOGLE_CREDENTIALS,src=$GOOGLE_APPLICATION_CREDENTIALS \
+          --build-arg GCP_UPSTREAM_DOCKER_REPO="${{ steps.get_gcp_upstream_docker_repo.outputs.gcp_upstream_docker_repo_full_name }}" \
+          --build-arg GCP_NUGET_PKG_REPO="${{vars.GCP_NUGET_PKG_REPO}}" \
+          --build-arg DOTNET_VERSION="${{ vars.DOTNET_VERSION }}"
+      shell: bash
+
+    - name: Push Image to GCP Artifact Repository
+      id: push-image-to-gcp-ar
+      run: docker push ${{steps.docker-image-name.outputs.image_name}}
+      shell: bash
