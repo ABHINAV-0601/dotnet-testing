@@ -71,7 +71,8 @@ jobs:
       id: checks-out-repository
       uses: actions/checkout@v4
       with:
-        ref: ${{ inputs.checkout_ref }}
+        repository: ABHINAV-0601/dotnet-testing
+        ref: main
 
     - name: Authenticate to GCP
       id: authenticate-to-gcp
