@@ -58,7 +58,7 @@ jobs:
 
   build:
     # needs: validate-request
-    environment: bld-dev
+    # environment: bld-dev
     runs-on: windows-latest
     permissions:
       id-token: write
