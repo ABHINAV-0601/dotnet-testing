@@ -106,15 +106,15 @@ jobs:
     - name: "Get GCP Upstream NuGet Repo Name"
       id: get_gcp_upstream_nuget_repo
       run: |
-        repo_name=${repo_name:-"${{ vars.GCP_UPSTREAM_NUGET_REPO}}"}
+        repo_name=${repo_name:-"nuget-repo"}
         echo $repo_name
-        echo 'gcp_upstream_nuget_repo_full_name="artifactregistry://${{vars.GCP_NUGET_REGISTRY}}/${{vars.GCP_GAR_PROJECT_ID}}/"'$repo_name >> $GITHUB_OUTPUT
+        echo 'gcp_upstream_nuget_repo_full_name="artifactregistry://nuget-registry/michaels-testing/"'$repo_name >> $GITHUB_OUTPUT
         echo 'gcp_upstream_nuget_repo_name='$repo_name >> $GITHUB_OUTPUT
       shell: bash
 
     - name: Docker-Image-Name
       id: docker-image-name
-      uses: michaels-stores/devops-action-docker-image@main
+      uses: ABHINAV-0601/dotnet-action@main
       with:
         github_event_name: ${{ github.event_name }}
         repo_prefix: ${{true && format('{0}/', steps.get_gcp_docker_repo.outputs.gcp_docker_repo_full_name) || vars.JFROG_REPO_PREFIX }}
@@ -127,7 +127,7 @@ jobs:
         ref_name: ${{ toJSON(github.ref_name) }}
 
     - name: Configure Docker for GCP
-      run: gcloud auth configure-docker ${{ vars.GCP_DOCKER_REGISTRY }} --quiet
+      run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
     # Modified for .NET build
     - name: Build Docker Image
