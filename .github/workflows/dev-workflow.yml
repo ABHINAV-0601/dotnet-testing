@@ -139,7 +139,6 @@ jobs:
         echo "Using Dockerfile: $DOCKERFILE_NAME"
         docker build --no-cache -f $DOCKERFILE_NAME . \
           -t ${{steps.docker-image-name.outputs.image_name}} \
-          --secret id=GOOGLE_CREDENTIALS,src=$GOOGLE_APPLICATION_CREDENTIALS \
           --build-arg GCP_UPSTREAM_DOCKER_REPO="${{ steps.get_gcp_upstream_docker_repo.outputs.gcp_upstream_docker_repo_full_name }}" \
           --build-arg GCP_NUGET_PKG_REPO="${{vars.GCP_NUGET_PKG_REPO}}" \
           --build-arg DOTNET_VERSION="6.0"
