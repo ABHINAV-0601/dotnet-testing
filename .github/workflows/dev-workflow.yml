@@ -59,7 +59,7 @@ jobs:
   build:
     # needs: validate-request
     # environment: bld-dev
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
