@@ -1,0 +1,43 @@
+pipelines:
+  branches:
+    develop:
+      - step:
+          name: Build and Push DH GSO Docker Image to GCR
+          image: docker:latest
+          size: 2x          
+          services:
+            - docker
+          privileged: true 
+          cap_add:
+            - SYS_ADMIN
+          script:
+            - mkdir -p $HOME/.docker
+            - echo "$GCP_DEV_KEY" >> "$HOME/.docker/config.json"
+            - export DOCKER_BUILDKIT=0
+            - docker login -u _json_key --password-stdin https://gcr.io < $HOME/.docker/config.json
+            - docker build -t gcr.io/design-hub-dev/designhub-gso:dh-gso_$BITBUCKET_COMMIT .
+            - docker push gcr.io/design-hub-dev/designhub-gso:dh-gso_$BITBUCKET_COMMIT
+      
+    master:
+      - step:
+          name: Build and Push GSO Docker Image to Staging GCR
+          image: docker:latest 
+          size: 2x         
+          services:
+            - docker
+          privileged: true 
+          cap_add:
+            - SYS_ADMIN
+          script:
+            - mkdir -p $HOME/.docker
+            - echo "$GCP_STG_KEY" >> "$HOME/.docker/config.json"
+            - export DOCKER_BUILDKIT=0
+            - docker login -u _json_key --password-stdin https://gcr.io < $HOME/.docker/config.json
+            - docker build -t gcr.io/design-hub-stg/designhub-gso:dh-gso_$BITBUCKET_COMMIT .
+            - docker push gcr.io/design-hub-stg/designhub-gso:dh-gso_$BITBUCKET_COMMIT
+
+          
+definitions:
+  services:
+    docker:
+      memory: 4096

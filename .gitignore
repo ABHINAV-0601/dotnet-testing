@@ -1,0 +1,16 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+.DS_Store
+# dependencies
+.vscode
+
+# testing
+
+
+# production
+/bin
+/obj
+/.vs
+
+# misc
+#.gitignore
